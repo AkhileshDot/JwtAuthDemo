@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 public class SecureController : Controller
 {
     [HttpGet("secret")]
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     public IActionResult GetSecret()
     {
         var username = UserStore.users[1].Username;
