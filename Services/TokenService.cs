@@ -3,16 +3,19 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-public class TokenService
+using JwtAuthDemo.Data;
+public class TokenService : ITokenService
 {
     private readonly JwtSettings _jwtSettings;
     private static List<RefreshToken> refreshTokens = new List<RefreshToken>();
-    public TokenService(IOptions<JwtSettings> jwtsettings)
+    private readonly DemoAppDbContext _dbContext;
+    public TokenService(IOptions<JwtSettings> jwtsettings, DemoAppDbContext dbContext)
     {
         _jwtSettings = jwtsettings.Value;
+        _dbContext = dbContext;
     }
 
-    public string GenerateToken(string username, string role)
+    public async Task<string> GenerateToken(string username, string role)
     {
         var claims = new[]
         {
@@ -33,7 +36,7 @@ public class TokenService
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
-    public RefreshToken GenerateRefreshToken(string username)
+    public async Task<RefreshToken> GenerateRefreshToken(string username)
     {
         var token = new RefreshToken
         {
@@ -41,25 +44,29 @@ public class TokenService
             Token = Guid.NewGuid().ToString(),
             ExpiryTime = DateTime.UtcNow.AddDays(7)
         };
-        refreshTokens.Add(token);
+
+        _dbContext.RefreshTokens.Add(token);
+        _dbContext.SaveChanges();
+
         return token;
     }
-    public string RefreshAccessToken(string refreshToken)
+    public async Task<string> RefreshAccessToken(string refreshToken)
     {
-        var token = refreshTokens.SingleOrDefault(x => x.Token == refreshToken);
+        var token = _dbContext.RefreshTokens.SingleOrDefault(x => x.Token == refreshToken);
 
         if(token == null || token.ExpiryTime <= DateTime.UtcNow)
                 return null;
-        return GenerateToken(token.Username, "Admin");
+        return await GenerateToken(token.Username, "Admin");
 
 
     }
-    public bool RevokeRefreshToken(string refreshToken)
+    public async Task<bool> RevokeRefreshToken(string refreshToken)
     {
-        var token = refreshTokens.SingleOrDefault(x => x.Token == refreshToken);
+        var token = _dbContext.RefreshTokens.SingleOrDefault(x => x.Token == refreshToken);
         if(token != null)
         {
-            refreshTokens.Remove(token);
+            _dbContext.RefreshTokens.Remove(token);
+            _dbContext.SaveChanges();
             return true;
         }
         return false;

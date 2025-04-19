@@ -4,31 +4,38 @@
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
-    private readonly TokenService _tokenservice;
+    private readonly IAuthService _authService;
 
-    public AuthController(TokenService tokenService)
+    public AuthController(IAuthService authService)
     {
-        _tokenservice = tokenService;
+        _authService = authService;
     }
 
     [HttpPost("login")]
     public IActionResult Login([FromBody] LoginRequest request)
     {
-        if(request.Username == "akizone" && request.Password == "akizone")
+        Console.WriteLine($"Username Type: {request.Username?.GetType().Name}");
+        Console.WriteLine($"Username Value: {request.Username}");
+        Console.WriteLine($"Password Value: {request.Password}");
+        if (string.IsNullOrWhiteSpace(request.Username))
+            throw new ArgumentException("Username is required");
+        try
         {
-            var accessToken = _tokenservice.GenerateToken(request.Username, request.Role ?? "User");
-            var refreshToken = _tokenservice.GenerateRefreshToken(request.Username);
-            return Ok(new 
-            {   AccessToken = accessToken,
-                RefreshToken = refreshToken.Token            
-            });
+            var result = _authService.Login(request);
+            return Ok(result);
         }
-        return Unauthorized("Invalid credentials");
+        catch (Exception ex)
+        {
+            return Unauthorized("Invalid credentials");
+        }
+
+        
+        
     }
     [HttpPost("refresh")]
-    public IActionResult Refresh([FromBody] RefreshTokenRequest request)
+    public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest request)
     {
-        var newToken = _tokenservice.RefreshAccessToken(request.RefreshToken);
+        var newToken = await _authService.RefreshAccessToken(request);
         if (newToken == null)
             return Unauthorized("Invalid or expired refresh token");
 
@@ -38,9 +45,9 @@ public class AuthController : ControllerBase
         });
     }
     [HttpPost("logout")]
-    public IActionResult Logout([FromBody] LogoutRequest request)
+    public async Task<IActionResult> Logout([FromBody] LogoutRequest request)
     {
-        var result = _tokenservice.RevokeRefreshToken(request.RefreshToken);
+        var result = await _authService.Logout(request);
         if (!result)
         {
             return NotFound("Refresh token not found or already revoked");
