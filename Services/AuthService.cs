@@ -1,4 +1,5 @@
-﻿using JwtAuthDemo.Data;
+﻿using AutoMapper;
+using JwtAuthDemo.Data;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
@@ -8,12 +9,14 @@ public class AuthService : IAuthService
     private readonly DemoAppDbContext _dbContext;
     private readonly IPasswordHasher<User> _passWordHasher;
     private readonly ITokenService _tokenService;
+    private readonly IMapper _mapper;
 
-    public AuthService(DemoAppDbContext dbContext, IPasswordHasher<User> hasher, ITokenService tokenService)
+    public AuthService(DemoAppDbContext dbContext, IPasswordHasher<User> hasher, ITokenService tokenService, IMapper mapper)
     {
         _dbContext = dbContext;
         _passWordHasher = hasher;
-        _tokenService = tokenService;        
+        _tokenService = tokenService;
+        _mapper = mapper; 
     }
 
     public async Task<LoginResponseDto> Login(LoginRequest loginRequest)
@@ -26,35 +29,10 @@ public class AuthService : IAuthService
         if (check == PasswordVerificationResult.Failed)
             throw new UnauthorizedAccessException("Invalid password");
 
-        string accesstoken = await _tokenService.GenerateToken(user.Username, user.Role);
+        string accessToken = await _tokenService.GenerateToken(user.Username, user.Role);
         RefreshToken refressToken = await _tokenService.GenerateRefreshToken(user.Username);
 
-        //return new LoginResponseDto
-        //{
-        //    AccessToken = accesstoken,
-        //    RefreshToken = refressToken.Token,
-        //    User = new UserDto
-        //    {
-        //        Id = user.Id,
-        //        Username = user.Username,
-        //        Role = user.Role
-        //    }
-        //};
-
-        var result = new LoginResponseDto
-        {
-            AccessToken = accesstoken,
-            RefreshToken = refressToken.Token,
-            User = new UserDto
-            {
-                Id = user.Id,
-                Username = user.Username,
-                Role = user.Role
-            }
-        };
-
-        Console.WriteLine(JsonSerializer.Serialize(result)); // 👈 log it before returning
-        return result;
+        return _mapper.Map<LoginResponseDto>((user, accessToken, refressToken));
     }
 
     public async Task<string> RefreshAccessToken(RefreshTokenRequest refreshTokenRequest)
