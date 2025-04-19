@@ -14,11 +14,6 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public IActionResult Login([FromBody] LoginRequest request)
     {
-        Console.WriteLine($"Username Type: {request.Username?.GetType().Name}");
-        Console.WriteLine($"Username Value: {request.Username}");
-        Console.WriteLine($"Password Value: {request.Password}");
-        if (string.IsNullOrWhiteSpace(request.Username))
-            throw new ArgumentException("Username is required");
         try
         {
             var result = _authService.Login(request);
