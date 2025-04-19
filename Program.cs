@@ -2,6 +2,10 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
+using JwtAuthDemo.Data;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,6 +14,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();
+
+// Add DbContext
+builder.Services.AddDbContext<DemoAppDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DemoAppConnectionString")));
 
 // Bind JwtSetting from appesettings
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
@@ -68,6 +76,9 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+// Add PasswordHasher
+builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -84,5 +95,28 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+if (app.Environment.IsDevelopment())
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var dbContext = scope.ServiceProvider.GetRequiredService<DemoAppDbContext>();
+        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>();
+
+        dbContext.Database.Migrate();
+
+        var seederTypes = typeof(IDataSeeder).Assembly
+            .GetTypes()
+            .Where(t => typeof(IDataSeeder).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+
+        foreach(var type in seederTypes)
+        {
+            var seeder = (IDataSeeder)ActivatorUtilities.CreateInstance(scope.ServiceProvider, type);
+            seeder.Seed();
+        }
+
+
+}
+}
 
 app.Run();
